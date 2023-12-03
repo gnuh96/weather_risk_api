@@ -1,13 +1,14 @@
+from flask import Flask, jsonify, request
 from flask import Flask, request, make_response
 from flask_restful import Resource, Api
 from flask_cors import CORS
-import os
 import prediction_tornado
 
 import openmeteo_requests
 import requests_cache
 from retry_requests import retry
 import pandas as pd
+from pymongo import MongoClient
 
 app = Flask(__name__)
 cors = CORS(app, origins='*', expose_headers=['Content-Type'])
@@ -16,6 +17,34 @@ api = Api(app)
 cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
 retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
 openmeteo = openmeteo_requests.Client(session=retry_session)
+
+# Use MongoClient to connect to the MongoDB server
+mongo_client = MongoClient(
+    'mongodb://admin:admin@mongodb:27017/weatherRisk_db?authSource=admin')
+# Access the desired database
+mongo_db = mongo_client.weatherRisk_db
+# Access the collection
+tornado_collection = mongo_db.tornado
+
+
+@app.route('/tornado', methods=['GET', 'POST'])
+def tornado():
+    if request.method == 'GET':
+        # Use find() method on the collection
+        tornado_data = list(tornado_collection.find())
+        # Convert ObjectId to string before jsonifying
+        tornado_data_serializable = [
+            {**data, '_id': str(data['_id']), 'id': str(data['_id'])} for data in tornado_data
+        ]
+        return jsonify({'tornado_data': tornado_data_serializable})
+
+    if request.method == 'POST':
+        data = request.get_json()
+        # Use insert_one() method on the collection
+        result = tornado_collection.insert_one(data)
+        # Add the inserted document's _id to the response
+        inserted_id = str(result.inserted_id)
+        return jsonify({'message': 'Tornado data added successfully', 'data': {**data, '_id': inserted_id}})
 
 
 @app.teardown_appcontext
@@ -129,5 +158,4 @@ api.add_resource(GetPredictionOutput, '/predict')
 api.add_resource(GetWeather, '/weather')
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=8085)

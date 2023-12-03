@@ -1,0 +1,10 @@
+Flask
+Flask-RESTful
+Flask-CORS
+Flask-PyMongo
+openmeteo-requests
+retry-requests
+pandas
+requests_cache
+scikit-learn
+pymongo
